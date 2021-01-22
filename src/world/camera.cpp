@@ -19,12 +19,12 @@ cg::world::camera::~camera() {}
 
 void cg::world::camera::set_position(float3 in_position)
 {
-	THROW_ERROR("Not implemented yet");
+	position = in_position;
 }
 
 void cg::world::camera::set_theta(float in_theta)
 {
-	THROW_ERROR("Not implemented yet");
+	theta = in_theta * static_cast<float>(M_PI) / 180.f;
 }
 
 void cg::world::camera::set_phi(float in_phi)
@@ -34,7 +34,7 @@ void cg::world::camera::set_phi(float in_phi)
 
 void cg::world::camera::set_angle_of_view(float in_aov)
 {
-	THROW_ERROR("Not implemented yet");
+	angle_of_view = in_aov * static_cast<float>(M_PI) / 180.f;
 }
 
 void cg::world::camera::set_height(float in_height)
@@ -49,17 +49,18 @@ void cg::world::camera::set_width(float in_width)
 
 void cg::world::camera::set_z_near(float in_z_near)
 {
-	THROW_ERROR("Not implemented yet");
-	}
+	z_near = in_z_near;
+}
 
 void cg::world::camera::set_z_far(float in_z_far)
 {
-	THROW_ERROR("Not implemented yet");
+	z_far = in_z_far;
 }
 
 const float4x4 cg::world::camera::get_view_matrix() const
 {
-	THROW_ERROR("Not implemented yet");
+	float3 eye = position + get_direction();
+	float3 z_axis = normalize(position - eye);
 	return float4x4();
 }
 
