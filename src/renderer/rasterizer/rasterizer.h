@@ -51,6 +51,8 @@ inline void rasterizer<VB, RT>::set_render_target(
 {
 	if (in_render_target)
 		render_target = in_render_target;
+	if (in_depth_buffer)
+		depth_buffer = in_depth_buffer;
 }
 
 template<typename VB, typename RT>
@@ -61,6 +63,14 @@ inline void rasterizer<VB, RT>::clear_render_target(const RT& in_clear_value, co
 		for (size_t i = 0; i < render_target->get_number_of_elements(); i++)
 		{
 			render_target->item(i) = in_clear_value;
+		}
+	}
+
+	if (depth_buffer)
+	{
+		for (size_t i = 0; i < depth_buffer->get_number_of_elements(); i++)
+		{
+			depth_buffer->item(i) = in_depth;
 		}
 	}
 }
@@ -122,20 +132,29 @@ inline void rasterizer<VB, RT>::draw(size_t num_vertexes, size_t vertex_offset)
 				0.f, static_cast<float>(height) - 1.f),
 		};
 
+		float edge = edge_function(
+			float2{ vertices[0].x, vertices[0].y },
+			float2{ vertices[1].x, vertices[1].y },
+			float2{ vertices[2].x, vertices[2].x });
+				
+
 		for (int x = static_cast<int>(bounding_box_begin.x);
 			 x <= static_cast<int>(bounding_box_end.x); x++)
 		{
 			for (int y = static_cast<int>(bounding_box_begin.y);
 				 y <= static_cast<int>(bounding_box_end.y); y++)
 			{
+				//bary for vertices[2]
 				float edge0 = edge_function(
 					float2{ vertices[0].x, vertices[0].y },
 					float2{ vertices[1].x, vertices[1].y },
 					float2{ static_cast<float>(x), static_cast<float>(y) });
+				//vertices[0]
 				float edge1 = edge_function(
 					float2{ vertices[1].x, vertices[1].y },
 					float2{ vertices[2].x, vertices[2].y },
 					float2{ static_cast<float>(x), static_cast<float>(y) });
+				//vertices[1]
 				float edge2 = edge_function(
 					float2{ vertices[2].x, vertices[2].y },
 					float2{ vertices[0].x, vertices[0].y },
@@ -143,11 +162,21 @@ inline void rasterizer<VB, RT>::draw(size_t num_vertexes, size_t vertex_offset)
 				
 				if (edge0 >= 0.f && edge1 >= 0.f && edge2 >= 0.f)
 				{
-					auto pixel_shader_result = 
-						pixel_shader(vertices[0], 0.f);
+					float u = edge1 / edge;
+					float v = edge2 / edge;
+					float w = edge0 / edge;
 
-					render_target->item(x, y) = 
-						RT::from_color(pixel_shader_result);
+					float z =
+						u * vertices[0].z + v * vertices[1].z + w * vertices[2].z;
+					if (depth_test(z, x, y))
+					{
+						auto pixel_shader_result = pixel_shader(vertices[0], z);
+
+						render_target->item(x, y) =
+							RT::from_color(pixel_shader_result);
+						if (depth_buffer)
+							depth_buffer->item(x, y) = z;
+					}
 
 				}
 			}
@@ -165,7 +194,9 @@ inline float rasterizer<VB, RT>::edge_function(float2 a, float2 b, float2 c)
 template<typename VB, typename RT>
 inline bool rasterizer<VB, RT>::depth_test(float z, size_t x, size_t y)
 {
-	THROW_ERROR("Not implemented yet");
+	if (!depth_buffer)
+		return true;
+	return depth_buffer->item(x, y) > z;
 }
 
 } // namespace cg::renderer

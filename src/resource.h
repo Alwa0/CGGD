@@ -103,7 +103,7 @@ struct unsigned_color
 		out.g = std::clamp(static_cast<int>(255.f * color.g), 0, 255);
 		out.b = std::clamp(static_cast<int>(255.f * color.b), 0, 255);
 
-		return unsigned_color();
+		return out;
 	};
 	float3 to_float3()
 	{
