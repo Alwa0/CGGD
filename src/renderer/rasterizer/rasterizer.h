@@ -103,7 +103,6 @@ inline void rasterizer<VB, RT>::draw(size_t num_vertexes, size_t vertex_offset)
 		for (auto& vertex : vertices)
 		{
 			float4 coords{ vertex.x, vertex.y, vertex.z, 1.f };
-
 			auto processed_vertex = vertex_shader(coords, vertex);
 
 			vertex.x = processed_vertex.first.x / processed_vertex.first.w;
@@ -112,7 +111,7 @@ inline void rasterizer<VB, RT>::draw(size_t num_vertexes, size_t vertex_offset)
 
 			vertex.x = (vertex.x + 1.f) * width / 2.f;
 			vertex.y = (-vertex.y + 1.f) * height / 2.f;
-		}
+		};
 
 		float2 bounding_box_begin{
 			std::clamp(
@@ -120,69 +119,65 @@ inline void rasterizer<VB, RT>::draw(size_t num_vertexes, size_t vertex_offset)
 				0.f, static_cast<float>(width) - 1.f),
 			std::clamp(
 				std::min(std::min(vertices[0].y, vertices[1].y), vertices[2].y),
-				0.f, static_cast<float>(height) - 1.f),
+				0.f, static_cast<float>(height) - 1.f)
 		};
-
 		float2 bounding_box_end{
 			std::clamp(
 				std::max(std::max(vertices[0].x, vertices[1].x), vertices[2].x),
 				0.f, static_cast<float>(width) - 1.f),
 			std::clamp(
 				std::max(std::max(vertices[0].y, vertices[1].y), vertices[2].y),
-				0.f, static_cast<float>(height) - 1.f),
+				0.f, static_cast<float>(height) - 1.f)
 		};
 
 		float edge = edge_function(
 			float2{ vertices[0].x, vertices[0].y },
 			float2{ vertices[1].x, vertices[1].y },
-			float2{ vertices[2].x, vertices[2].x });
-				
+			float2{ vertices[2].x, vertices[2].y }
+		);
 
 		for (int x = static_cast<int>(bounding_box_begin.x);
-			 x <= static_cast<int>(bounding_box_end.x); x++)
+			 x < bounding_box_end.x; x++)
 		{
 			for (int y = static_cast<int>(bounding_box_begin.y);
-				 y <= static_cast<int>(bounding_box_end.y); y++)
+				 y < bounding_box_end.y; y++)
 			{
-				//bary for vertices[2]
+				// bary for vertices[2]
 				float edge0 = edge_function(
 					float2{ vertices[0].x, vertices[0].y },
 					float2{ vertices[1].x, vertices[1].y },
 					float2{ static_cast<float>(x), static_cast<float>(y) });
-				//vertices[0]
+				// bary for vertices[0]
 				float edge1 = edge_function(
 					float2{ vertices[1].x, vertices[1].y },
 					float2{ vertices[2].x, vertices[2].y },
 					float2{ static_cast<float>(x), static_cast<float>(y) });
-				//vertices[1]
+				// bary for vertices[1]
 				float edge2 = edge_function(
 					float2{ vertices[2].x, vertices[2].y },
 					float2{ vertices[0].x, vertices[0].y },
 					float2{ static_cast<float>(x), static_cast<float>(y) });
-				
+
 				if (edge0 >= 0.f && edge1 >= 0.f && edge2 >= 0.f)
 				{
 					float u = edge1 / edge;
 					float v = edge2 / edge;
 					float w = edge0 / edge;
 
-					float z =
-						u * vertices[0].z + v * vertices[1].z + w * vertices[2].z;
+					float z = u * vertices[0].z + v * vertices[1].z + w * vertices[2].z;
 					if (depth_test(z, x, y))
 					{
-						auto pixel_shader_result = pixel_shader(vertices[0], z);
+						auto pixel_shader_result = pixel_shader(vertices[0], 0.f);
 
 						render_target->item(x, y) =
 							RT::from_color(pixel_shader_result);
 						if (depth_buffer)
 							depth_buffer->item(x, y) = z;
 					}
-
 				}
 			}
 		}
 	}
-
 }
 
 template<typename VB, typename RT>

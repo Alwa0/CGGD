@@ -12,8 +12,10 @@ void cg::renderer::rasterization_renderer::init()
 	// Create render target and depth buffer
 	render_target = std::make_shared<cg::resource<cg::unsigned_color>>(
 		settings->width, settings->height);
+
 	depth_buffer = std::make_shared<cg::resource<float>>(
 		settings->width, settings->height);
+
 	camera = std::make_shared<cg::world::camera>();
 	camera->set_height(static_cast<float>(settings->height));
 	camera->set_width(static_cast<float>(settings->width));
@@ -48,7 +50,7 @@ void cg::renderer::rasterization_renderer::render()
 		return std::make_pair(processed_vertex, vertex_data);
 	};
 
-	rasterizer->pixel_shader = [&](cg::vertex vertex_data, float z) {
+	rasterizer->pixel_shader = [](cg::vertex vertex_data, float z) {
 		return cg::color{ vertex_data.ambient_r, vertex_data.ambient_g,
 						  vertex_data.ambient_b };
 	};
