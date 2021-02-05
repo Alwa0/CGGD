@@ -116,7 +116,7 @@ public:
 	void set_per_shape_vertex_buffer(
 		std::vector<std::shared_ptr<cg::resource<VB>>> in_per_shape_vertex_buffer);
 	void build_acceleration_structure();
-	std::vector<aabb<VB>> acceleration_structures;
+	std::vector<triangle<VB>> acceleration_structures;
 
 	void ray_generation(float3 position, float3 direction, float3 right, float3 up);
 
@@ -183,6 +183,7 @@ template<typename VB, typename RT>
 inline void raytracer<VB, RT>::set_viewport(size_t in_width, size_t in_height)
 {
 	width = in_width;
+	height = in_height;
 }
 
 template<typename VB, typename RT>
@@ -251,7 +252,7 @@ inline payload
 	payload.t = -1.f;
 
 	float3 pvec = cross(ray.direction, triangle.ca);
-	float det = det(triangle.ba, pvec);
+	float det = dot(triangle.ba, pvec);
 	if (det > -1e-8 && det < 1e-8)
 		return payload;
 	float inv_det = 1.f / det;
@@ -259,15 +260,14 @@ inline payload
 	float u = dot(tvec, pvec) * inv_det;
 	if (u < 0.f || u > 1.f)
 		return payload;
+
 	float3 qvec = cross(tvec, triangle.ba);
 	float v = dot(ray.direction, qvec) * inv_det;
 	if (v < 0.f || u + v > 1.f)
 		return payload;
 	payload.t = dot(triangle.ca, qvec) * inv_det;
 	payload.bary = float3{ 1.f - u - v, u, v };
-	retun payload;
-
-	return payload{};
+	return payload;
 }
 
 template<typename VB, typename RT>

@@ -30,6 +30,8 @@ void cg::renderer::ray_tracing_renderer::init()
 	raytracer->set_viewport(settings->width, settings->height);
 	raytracer->set_per_shape_vertex_buffer(model->get_per_shape_buffer());
 
+	shadow_raytracer =
+		std::make_shared<cg::renderer::raytracer<cg::vertex, cg::unsigned_color>>();
 	lights.push_back({ float3{ 2, 1.58f, -0.03f }, 
 					   float3{ 0.78f, 0.78f, 0.78f } });
 }
@@ -44,7 +46,9 @@ void cg::renderer::ray_tracing_renderer::render()
 	raytracer->miss_shader = [](const ray& ray) 
 	{ 
 		payload payload{};
-		payload.color = { ray.direction.x / 0.5f + 0.5f, ray.direction.y / 0.5f + 0.5f, ray.direction.z / 0.5f + 0.5f };
+		payload.color = { ray.direction.x / 0.5f + 0.5f, 
+			ray.direction.y / 0.5f + 0.5f, 
+			ray.direction.z / 0.5f + 0.5f };
 		//{ 0.f, 0.f, (ray.direction.y + 1.0f) * 0.5f };
 		return payload;
 	};
@@ -61,15 +65,30 @@ void cg::renderer::ray_tracing_renderer::render()
 			for (auto& light : lights)
 			{
 				cg::renderer::ray to_light(position, light.position - position);
-				result_color += triangle.diffuse * light.color *
-								std::max(dot(normal, to_light.direction), 0.f);
+				auto shadow_payload = shadow_raytracer->trace_ray(
+					to_light, 1, length(light.position - position));
 
+				if (shadow_payload.t == -1)
+					result_color += triangle.diffuse * light.color *
+									std::max(0.f, dot(normal, to_light.direction));
 			}
-			payload.color = cg::color::from_float3(triangle.ambient);
+			payload.color = cg::color::from_float3(result_color);
 			return payload;
 	};
 
 	raytracer->build_acceleration_structure();
+
+	shadow_raytracer->acceleration_structures = raytracer->acceleration_structures;
+	shadow_raytracer->miss_shader = [](const ray& ray) {
+		payload payload{};
+		payload.t = -1.f;
+		return payload;
+	};
+	shadow_raytracer->any_hit_shader = [](const ray& ray, payload& payload,
+										  const triangle<cg::vertex>& triangle) {
+		return payload;
+	};
+
 	raytracer->ray_generation(
 		camera->get_position(), camera->get_direction(), 
 		camera->get_right(), camera->get_up());
