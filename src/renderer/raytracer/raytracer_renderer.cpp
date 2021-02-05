@@ -32,7 +32,7 @@ void cg::renderer::ray_tracing_renderer::init()
 
 	shadow_raytracer =
 		std::make_shared<cg::renderer::raytracer<cg::vertex, cg::unsigned_color>>();
-	lights.push_back({ float3{ 2, 1.58f, -0.03f }, 
+	lights.push_back({ float3{ 0, 1.58f, -0.03f },
 					   float3{ 0.78f, 0.78f, 0.78f } });
 }
 
