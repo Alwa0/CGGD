@@ -46,10 +46,10 @@ void cg::renderer::ray_tracing_renderer::render()
 	raytracer->miss_shader = [](const ray& ray) 
 	{ 
 		payload payload{};
-		payload.color = { 0.f, 0.f, 0.f };
-			/*ray.direction.x / 0.5f + 0.5f, 
+		payload.color = { //0.f, 0.f, 0.f };
+			ray.direction.x / 0.5f + 0.5f, 
 			ray.direction.y / 0.5f + 0.5f, 
-			ray.direction.z / 0.5f + 0.5f };*/
+			ray.direction.z / 0.5f + 0.5f };
 		//{ 0.f, 0.f, (ray.direction.y + 1.0f) * 0.5f };
 		return payload;
 	};
@@ -63,19 +63,20 @@ void cg::renderer::ray_tracing_renderer::render()
 			float3 normal = payload.bary.x * triangle.na +
 							payload.bary.y * triangle.nb +
 							payload.bary.z * triangle.nc;
-			//for (auto& light : lights)
+			for (auto& light : lights)
 			{
-				float3 direction
+				/*float3 direction
 				{raytracer->get_random(omp_get_thread_num()+clock()),
 					raytracer->get_random(omp_get_thread_num()+clock()),
 					raytracer->get_random(omp_get_thread_num()+clock())
 				};
-				cg::renderer::ray to_light(position, normal+position);
+				cg::renderer::ray to_light(position, normal+position);*/
+				cg::renderer::ray to_light(position, light.position - position);
 				auto light_payload = raytracer->trace_ray(to_light, depth);
-				//auto shadow_payload = shadow_raytracer->trace_ray(
-				//	to_light, 1, length(light.position - position));
+				auto shadow_payload = shadow_raytracer->trace_ray(
+					to_light, 1, length(light.position - position));
 
-				//if (shadow_payload.t == -1)
+				if (shadow_payload.t == -1)
 					result_color += triangle.diffuse * light_payload.color.to_float3() *
 									std::max(0.f, dot(normal, to_light.direction));
 			}
@@ -95,11 +96,11 @@ void cg::renderer::ray_tracing_renderer::render()
 										  const triangle<cg::vertex>& triangle) {
 		return payload;
 	};
-	for (size_t frame_id = 0; frame_id < settings->accumulation_num; frame_id++)
-	{
+	//for (size_t frame_id = 0; frame_id < settings->accumulation_num; frame_id++)
+	//{
 		raytracer->ray_generation(
 			camera->get_position(), camera->get_direction(),
-			camera->get_right(), camera->get_up(), 1.f/(frame_id+1.f));
-	}
+			camera->get_right(), camera->get_up());
+	//}
 	cg::utils::save_resource(*render_target, settings->result_path);
 }

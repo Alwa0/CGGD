@@ -118,14 +118,14 @@ public:
 	void build_acceleration_structure();
 	std::vector<aabb<VB>> acceleration_structures;
 
-	void ray_generation(float3 position, float3 direction, float3 right, float3 up, float frame_weight=1);
+	void ray_generation(float3 position, float3 direction, float3 right, float3 up);
 
 	payload trace_ray(const ray& ray, size_t depth, float max_t = 1000.f, float min_t = 0.001f) const;
 	payload intersection_shader(const triangle<VB>& triangle, const ray& ray) const;
 
 	std::function<payload(const ray& ray)> miss_shader = nullptr;
-	std::function<payload(const ray& ray, payload& payload, const triangle<VB>& triangle, size_t depth)> closest_hit_shader =
-		nullptr;
+	std::function<payload(const ray& ray, payload& payload, const triangle<VB>& triangle, size_t depth)> 
+		closest_hit_shader = nullptr;
 	std::function<payload(const ray& ray, payload& payload, const triangle<VB>& triangle)> any_hit_shader =
 		nullptr;
 
@@ -189,7 +189,7 @@ inline void raytracer<VB, RT>::set_viewport(size_t in_width, size_t in_height)
 
 template<typename VB, typename RT>
 inline void raytracer<VB, RT>::ray_generation(
-	float3 position, float3 direction, float3 right, float3 up, float frame_weight)
+	float3 position, float3 direction, float3 right, float3 up)
 {
 	for (int x = 0; x < width; x++)
 	{
@@ -198,27 +198,28 @@ inline void raytracer<VB, RT>::ray_generation(
 		{
 			//[0; width-1]
 			//[-1; 1]
-			float x_jitter = get_random(omp_get_thread_num() + clock());
+			/*float x_jitter = get_random(omp_get_thread_num() + clock());
 			float y_jitter = get_random(omp_get_thread_num() + clock());
-			float u = 2.f * (x+x_jitter)/static_cast<float>(width-1) - 1.f;
+			float u = 2.f * (x+x_jitter)/static_cast<float>(width-1) - 1.f;*/
+			float u = 2.f * x / static_cast<float>(width - 1) - 1.f;
 			u *= static_cast<float>(width) / static_cast<float>(height);
-			float v = 2.f *(y_jitter + y) / static_cast<float>(height - 1) - 1.f;
-
-			/*float u_delta = 1.f / static_cast<float>(width - 1);
+			//float v = 2.f *(y_jitter + y) / static_cast<float>(height - 1) - 1.f;
+			float v = 2.f * y / static_cast<float>(height - 1) - 1.f;
+			float u_delta = 1.f / static_cast<float>(width - 1);
 			u_delta *= static_cast<float>(width) / static_cast<float>(height);
 
 			float v_delta = 1.f / static_cast<float>(height - 1);
-			*/
+			
 			float3 ray_direction = direction + u * right 
 											- v * up;
 			ray ray0(position, ray_direction);
-			payload payload0 = trace_ray(ray0, 2);
+			payload payload0 = trace_ray(ray0, 1);
 
-			cg::color accumed = cg::color::from_float3(render_target->item(x,y).to_float3());
+			/*cg::color accumed = cg::color::from_float3(render_target->item(x,y).to_float3());
 			cg::color result{ (accumed.r + payload0.color.r*frame_weight) / 2.f,
 							  (accumed.g + payload0.color.g*frame_weight) / 2.f,
 							  (accumed.b + payload0.color.b*frame_weight) / 2.f };
-			/*
+			*/
 			ray ray1(position, ray_direction+u_delta*right);
 			payload payload1 = trace_ray(ray1, 1);
 
@@ -232,8 +233,8 @@ inline void raytracer<VB, RT>::ray_generation(
 				(payload0.color.r+payload1.color.r + payload2.color.r+payload3.color.r)/4.f,
 				(payload0.color.g + payload1.color.g + payload2.color.g + payload3.color.g) / 4.f,
 				(payload0.color.b + payload1.color.b + payload2.color.b + payload3.color.b) / 4.f
-			};*/
-			render_target->item(x, y) = RT::from_color(result);
+			};
+			render_target->item(x, y) = RT::from_color(accumed_color);
 		}
 	}
 }
@@ -254,7 +255,6 @@ inline payload
 	{
 		if (aabb.aabb_test(ray))
 		{
-
 			for (auto& triangle : aabb.get_triangles())
 			{
 				payload payload = intersection_shader(triangle, ray);
@@ -339,7 +339,7 @@ inline const std::vector<triangle<VB>>& aabb<VB>::get_triangles() const
 template<typename VB>
 inline bool aabb<VB>::aabb_test(const ray& ray) const
 {
-	float3 inv_ray_direction = float3(1.0) / ray.direction;
+	float3 inv_ray_direction = float3(1.f) / ray.direction;
 	float3 t0 = (aabb_max - ray.position) * inv_ray_direction;
 	float3 t1 = (aabb_min - ray.position) * inv_ray_direction;
 	float3 tmin = min(t0, t1);
