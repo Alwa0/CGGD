@@ -50,7 +50,8 @@ void cg::renderer::dx12_renderer::init()
 
 void cg::renderer::dx12_renderer::destroy()
 {
-	THROW_ERROR("Not implemented yet")
+	wait_for_gpu();
+	CloseHandle(fence_event);
 }
 
 void cg::renderer::dx12_renderer::update()
@@ -60,7 +61,7 @@ void cg::renderer::dx12_renderer::update()
 
 void cg::renderer::dx12_renderer::render()
 {
-	THROW_ERROR("Not implemented yet")
+	move_to_next_frame();
 }
 
 void cg::renderer::dx12_renderer::load_pipeline()
@@ -144,10 +145,19 @@ void cg::renderer::dx12_renderer::load_pipeline()
 	cbv_heap_desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 	cbv_heap_desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
 	THROW_IF_FAILED(device->CreateDescriptorHeap(&cbv_heap_desc, IID_PPV_ARGS(&cbv_heap)));
+
+	for (size_t i = 0; i < frame_number; i++)
+	{
+		THROW_IF_FAILED(device->CreateCommandAllocator(
+			D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&command_allocators[i])));
+	}
+
+	
 }
 
 void cg::renderer::dx12_renderer::load_assets()
 {
+	device->CrateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, &command_allocators[0].Get(), ));
 	// create and upload vertex buffer
 	auto vertex_bufer_data = model->get_vertex_buffer();
 	const UINT vertex_buffer_size =
@@ -189,20 +199,80 @@ void cg::renderer::dx12_renderer::load_assets()
 
 	device->CreateConstantBufferView(
 		&cbv_descriptor, cbv_heap->GetCPUDescriptorHandleForHeapStart());
+
+	//Create sync
+	THROW_IF_FAILED(device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&fence)));
+	fence_event = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+	if (fence_event == nullptr)
+	{
+		THROW_IF_FAILED(HRESULT_FROM_WIN32(GetLastError()));
+	}
+
+	wait_for_gpu();
 }
 
 void cg::renderer::dx12_renderer::populate_command_list()
 {
-	THROW_ERROR("Not implemented yet")
+	//Resetting
+	THROW_IF_FAILED(command_allocators[frame_index]->Reset());
+	THROW_IF_FAILED(command_list->Reset(command_allocators[frame_index].Get(), pipeline_state.Get()));
+
+	//Initial state
+	command_list->SetGraphicsRootSignature(root_signature.Get());
+	ID3D12DescriptorHeap* heaps[] = { cbv_heap.Get() };
+	command_list->SetDescriptorHeaps(_countof(heaps), heaps);
+	command_list->SetGraphicsRootDescriptorTable(0, cbv_heap->GetGPUDescriptorHandleForHeapStart());
+	command_list->RSSetViewports(1, &view_port);
+	command_list->RSSetScissorRects(1, &scissor_rect);
+
+	command_list->ResourceBarrier(
+		1, &CD3DX12_RESOURCE_BARRIER::Transition(render_targets[frame_index].Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET	
+	));
+
+	//Drawing
+	CD3DX12_CPU_DESCRIPTOR_HANDLE rtv_handle(
+		rtv_heap->GetCPUDescriptorHandleForHeapStart(), frame_index, rtv_descriptor_size);
+	command_list->OMSetRenderTargets(1, &rtv_handle, FALSE, nullptr);
+	const float clear_color[] = {0.f, 0.f, 0.f, 1.f};
+	command_list->ClearRenderTargetView(rtv_handle, clear_color, 0, nullptr);
+	command_list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	command_list->IASetVertexBuffers(0, 1, &vertex_buffer_view);
+
+	command_list->DrawInstanced(model->get_vertex_buffer()->get_number_of_elements(), 1, 0, 0);
+
+	command_list->ResourceBarrier(
+		1, &CD3DX12_RESOURCE_BARRIER::Transition(
+			   render_targets[frame_index].Get(),
+			   D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT	
+	));
+
+	THROW_IF_FAILED(command_list->Close());
 }
 
 
-void cg::renderer::dx12_renderer::move_to_next_frame()
-{
-	THROW_ERROR("Not implemented yet")
+void cg::renderer::dx12_renderer::move_to_next_frame() {
+	const UINT64 current_fence_value = fence_values[frame_index];
+
+	THROW_IF_FAILED(command_queue->Signal(fence.Get(), current_fence_value));
+
+	frame_index = swap_chain->GetCurrentBackBufferIndex();
+	if (fence->GetCompletedValue() < fence_values[frame_index])
+	{
+		THROW_IF_FAILED(
+			fence->SetEventOnCompletion(fence_values[frame_index], fence_event));
+		WaitForSingleObjectEx(fence_event, INFINITE, FALSE);
+	}
+	fence_values[frame_index] = current_fence_value + 1;
 }
 
 void cg::renderer::dx12_renderer::wait_for_gpu()
 {
-	THROW_ERROR("Not implemented yet")
+	THROW_IF_FAILED(command_queue->Signal(fence.Get(), fence_values[frame_index]));
+
+	THROW_IF_FAILED(command_queue->Signal(fence.Get(), fence_values[frame_index]));
+	THROW_IF_FAILED(fence->SetEventOnCompletion(fence_values[frame_index], fence_event));
+
+	WaitForSingleObjectEx(fence_event, INFINITE, FALSE);
+
+	fence_values[frame_index]++;
 }
