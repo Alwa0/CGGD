@@ -44,6 +44,9 @@ void cg::renderer::dx12_renderer::init()
 	camera->set_z_far(settings->camera_z_far);
 	camera->set_z_near(settings->camera_z_near);
 
+	world_view_projection =
+		camera->get_dxm_view_matrix() * camera->get_dxm_projection_matrix();
+
 	load_pipeline();
 	load_assets();
 }
@@ -56,11 +59,21 @@ void cg::renderer::dx12_renderer::destroy()
 
 void cg::renderer::dx12_renderer::update()
 {
-	THROW_ERROR("Not implemented yet")
+	world_view_projection =
+		camera->get_dxm_view_matrix() * camera->get_dxm_projection_matrix();
+	memcpy(vertex_data_begin, vertex_bufer_data->get_data(), vertex_buffer_size);
 }
 
 void cg::renderer::dx12_renderer::render()
 {
+	populate_command_list();
+
+	ID3D12CommandList* command_lists[] = { command_list.Get() };
+	command_queue->ExecuteCommandLists(_countof(command_lists), command_lists);
+
+	THROW_IF_FAILED(swap_chain->Present(0, 0));
+
+
 	move_to_next_frame();
 }
 
