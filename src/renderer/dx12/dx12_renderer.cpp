@@ -117,12 +117,78 @@ void cg::renderer::dx12_renderer::load_pipeline()
 	THROW_IF_FAILED(temp_swap_chain.As(&swap_chain));
 
 	frame_index = swap_chain->GetCurrentBackBufferIndex();
+	
+	D3D12_DESCRIPTOR_HEAP_DESC rtv_heap_desc = {};
+	rtv_heap_desc.NumDescriptors = frame_number;
+	rtv_heap_desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
+	rtv_heap_desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+	THROW_IF_FAILED(device->CreateDescriptorHeap(&rtv_heap_desc, IID_PPV_ARGS(&rtv_heap)));
+	rtv_descriptor_size =
+		device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 
+	//create render targe view for RTs
+	CD3DX12_CPU_DESCRIPTOR_HANDLE rtv_handle(
+		rtv_heap->GetCPUDescriptorHandleForHeapStart());
+	for (UINT i = 0; i < frame_number; i++)
+	{
+		THROW_IF_FAILED(swap_chain->GetBuffer(i, IID_PPV_ARGS(&render_targets[i])));
+		device->CreateRenderTargetView(render_targets[i].Get(), nullptr, rtv_handle);
+		rtv_handle.Offset(1, rtv_descriptor_size);
+		std::wstring name = L"Render target";
+		name += std :: to_wstring(i);
+		render_targets[i]->SetName(name.c_str());
+	}
+
+	D3D12_DESCRIPTOR_HEAP_DESC cbv_heap_desc = {};
+	cbv_heap_desc.NumDescriptors = 1;
+	cbv_heap_desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+	cbv_heap_desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+	THROW_IF_FAILED(device->CreateDescriptorHeap(&cbv_heap_desc, IID_PPV_ARGS(&cbv_heap)));
 }
 
 void cg::renderer::dx12_renderer::load_assets()
 {
 	// create and upload vertex buffer
+	auto vertex_bufer_data = model->get_vertex_buffer();
+	const UINT vertex_buffer_size =
+		static_cast<UINT>(vertex_bufer_data->get_size_in_bytes());
+
+	THROW_IF_FAILED(device->CreateCommittedResource(
+		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD), D3D12_HEAP_FLAG_NONE,
+		&CD3DX12_RESOURCE_DESC::Buffer(vertex_buffer_size),
+		D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&vertex_buffer)));
+
+	vertex_buffer->SetName(L"Vertex buffer");
+
+	UINT8* vertex_data_begin;
+	CD3DX12_RANGE read_range(0, 0);
+	THROW_IF_FAILED(
+		vertex_buffer->Map(0, &read_range, reinterpret_cast<void**>(vertex_data_begin)));
+	memcpy(vertex_data_begin, vertex_bufer_data->get_data(), vertex_buffer_size);
+	vertex_buffer->Unmap(0, nullptr);
+
+	//create vb desc
+	vertex_buffer_view.BufferLocation = vertex_buffer->GetGPUVirtualAddress();
+	vertex_buffer_view.SizeInBytes = vertex_buffer_size;
+	vertex_buffer_view.StrideInBytes = sizeof(cg::vertex);
+
+	//create and pload constant buffer
+	THROW_IF_FAILED(device->CreateCommittedResource(
+		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD), D3D12_HEAP_FLAG_NONE,
+		&CD3DX12_RESOURCE_DESC::Buffer(64*1024),
+		D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&constant_buffer)));
+	constant_buffer->SetName(L"Constant buffer");
+	THROW_IF_FAILED(
+		constant_buffer->Map(0, &read_range, reinterpret_cast<void**>(constant_buffer_data_begin)));
+	memcpy(constant_buffer_data_begin, &world_view_projection, sizeof(world_view_projection));
+
+	//create cbv descriptor
+	D3D12_CONSTANT_BUFFER_VIEW_DESC cbv_descriptor = {};
+	cbv_descriptor.BufferLocation = constant_buffer->GetGPUVirtualAddress();
+	cbv_descriptor.SizeInBytes = (sizeof(world_view_projection) + 255) & ~255;
+
+	device->CreateConstantBufferView(
+		&cbv_descriptor, cbv_heap->GetCPUDescriptorHandleForHeapStart());
 }
 
 void cg::renderer::dx12_renderer::populate_command_list()
