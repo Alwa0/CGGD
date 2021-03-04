@@ -10,7 +10,8 @@
 using namespace cg::world;
 
 cg::world::camera::camera() :
-theta(0.f), phi(0.f), height(1080.f), width(1920.f), aspect_ratio(1920.f / 1080.f), angle_of_view(1.04719f), z_near(0.001f),
+theta(0.f), phi(0.f), height(1080.f), width(1920.f),
+aspect_ratio(1920.f / 1080.f), angle_of_view(1.04719f), z_near(0.001f),
 z_far(100.f), position(float3{ 0.f, 0.f, 0.f })
 {
 }
@@ -66,37 +67,44 @@ const float4x4 cg::world::camera::get_view_matrix() const
 	float3 z_axis = normalize(position - eye);
 	float3 x_axis = normalize(cross(up, z_axis));
 	float3 y_axis = cross(z_axis, x_axis);
+	/*return float4x4
+	{
+		{ x_axis.x, x_axis.y, x_axis.z, 0 }, { y_axis.x, y_axis.y, y_axis.z, 0
+	}, { z_axis.x, z_axis.y, z_axis.z, 0 }, { -dot(x_axis, position),
+	-dot(y_axis, position), -dot(z_axis, position), 1 };
+	*/
 	return float4x4{ { x_axis.x, y_axis.x, z_axis.x, 0 },
 					 { x_axis.y, y_axis.y, z_axis.y, 0 },
 					 { x_axis.z, y_axis.z, z_axis.z, 0 },
-					 { -dot(x_axis, position), -dot(y_axis, position), -dot(z_axis, position), 1 } };
+					 { -dot(x_axis, position), -dot(y_axis, position),
+					   -dot(z_axis, position), 1 } };
 }
 
 #ifdef DX12
 const DirectX::XMMATRIX cg::world::camera::get_dxm_view_matrix() const
 {
-	DirectX::FXMVECTOR eye_position{ position.x, position.y, position.z };
 	float3 direction = get_direction();
-	DirectX::FXMVECTOR eye_direction{ direction.x, direction.y, direction.z };
 	DirectX::FXMVECTOR up_direction{ 0.f, 1.f, 0.f };
+	DirectX::FXMVECTOR eye_direction{ direction.x, direction.y, direction.z };
+	DirectX::FXMVECTOR eye_position{ position.x, position.y, position.z };
 	return DirectX::XMMatrixLookToRH(eye_position, eye_direction, up_direction);
+	// return DirectX::XMMatrixIdentity();
 }
 
 const DirectX::XMMATRIX cg::world::camera::get_dxm_projection_matrix() const
 {
-	return DirectX::XMMatrixPerspectiveFovRH(
-		angle_of_view, aspect_ratio, z_near, z_far);
+	return DirectX::XMMatrixPerspectiveFovRH(angle_of_view, aspect_ratio, z_near, z_far);
 }
 #endif
 
 const float4x4 cg::world::camera::get_projection_matrix() const
 {
 	float f = 1.f / std::tanf(angle_of_view / 2.f);
+
 	return float4x4{ { f / aspect_ratio, 0, 0, 0 },
 					 { 0, f, 0, 0 },
 					 { 0, 0, z_far / (z_near - z_far), -1 },
-					 { 0, 0, (z_far * z_near) / (z_near - z_far), 0 }
-	};
+					 { 0, 0, (z_far * z_near) / (z_near - z_far), 0 } };
 }
 
 const float3 cg::world::camera::get_position() const
@@ -107,7 +115,7 @@ const float3 cg::world::camera::get_position() const
 const float3 cg::world::camera::get_direction() const
 {
 	return float3{ std::sin(theta) * std::cos(phi), -std::sin(phi),
-					-std::cos(theta) *std::cos(phi) };
+				   -std::cos(theta) * std::cos(phi) };
 }
 
 const float3 cg::world::camera::get_right() const
